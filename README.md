@@ -51,7 +51,9 @@ return retval;
 ```
 
 In this case, the first byte is prefixed with 110
-`1100 - 1110    10 - 101001`
+```
+1100 - 1110    10 - 101001
+```
 
 Notice that the last byte is prefixed with 10. This is a continuation byte.
 Every continuation byte is prefixed with 10. In the program, we use the following
