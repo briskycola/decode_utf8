@@ -99,7 +99,7 @@ uint8_t decode(uint8_t bytes[4])
     return sum;
 }
 
-int main()
+int main(void)
 {
     uint8_t input[4];
     for (int i = 0; i < 4; i++)
