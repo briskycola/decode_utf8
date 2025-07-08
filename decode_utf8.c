@@ -1,4 +1,28 @@
+// bit masks and other constants
+#define UTF8_DATA_BIT_MASK          0xC0
+#define UTF8_FRAMING_BIT_MASK       0x3F
+#define UTF8_CONTINUATION_BIT_MASK  0x80
+#define UTF8_MAX_BYTE_SIZE          0xFF
+#define UTF8_TOTAL_BYTES            0x04
+#define UTF8_SHIFT_LENGTH           0x06
+
+// min and max ranges for each UTF-8 byte
+#define UTF8_BYTE_ONE_MIN           0x00
+#define UTF8_BYTE_ONE_MAX           0x7F
+#define UTF8_BYTE_TWO_MIN           0xC0
+#define UTF8_BYTE_TWO_MAX           0xDF
+#define UTF8_BYTE_THREE_MIN         0xE0
+#define UTF8_BYTE_THREE_MAX         0xEF
+#define UTF8_BYTE_FOUR_MIN          0xF0
+#define UTF8_BYTE_FOUR_MAX          0xF7
+
+// bit masks for the utf8 bytes
+#define UTF8_BYTE_TWO_MASK          0x1F
+#define UTF8_BYTE_THREE_MASK        0xF
+#define UTF8_BYTE_FOUR_MASK         0x7
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 uint8_t bytesToRead(uint8_t value)
@@ -12,14 +36,13 @@ uint8_t bytesToRead(uint8_t value)
     *   to represent the UTF-8 char
     */
 
-    uint8_t retval;
-    if      (0x00 <= value && value <= 0x7F)    retval = 1;
-    else if (0xC0 <= value && value <= 0xDF)    retval = 2;
-    else if (0xE0 <= value && value <= 0xEF)    retval = 3;
-    else if (0xF0 <= value && value <= 0xF7)    retval = 4;
-    else                                        retval = 0;
-
-    return retval;
+    uint8_t returnValue;
+    if      (UTF8_BYTE_ONE_MIN <= value && value <= UTF8_BYTE_ONE_MAX)        returnValue = 1;
+    else if (UTF8_BYTE_TWO_MIN <= value && value <= UTF8_BYTE_TWO_MAX)        returnValue = 2;
+    else if (UTF8_BYTE_THREE_MIN <= value && value <= UTF8_BYTE_THREE_MAX)    returnValue = 3;
+    else if (UTF8_BYTE_FOUR_MIN <= value && value <= UTF8_BYTE_FOUR_MAX)      returnValue = 4;
+    else                                                                      returnValue = 0;
+    return returnValue;
 }
 
 uint8_t isContinuation(uint8_t value)
@@ -27,14 +50,15 @@ uint8_t isContinuation(uint8_t value)
     // format of value: | ff dd dddd |
     // where 'f' denotes a framing bit
     // where 'd' denotes a data bit
-    uint8_t retval = 0;
+    uint8_t returnValue;
+    returnValue = 0;
 
     // eliminate the data bits from value
-    value = value & 0xC0;
+    value = value & UTF8_DATA_BIT_MASK;
 
     // ensure the framing bits are "10"
-    if (value == 0x80) retval = 1;
-    return retval;
+    if (value == UTF8_CONTINUATION_BIT_MASK) returnValue = 1;
+    return returnValue;
 }
 
 uint8_t eliminateBits(uint8_t value)
@@ -47,25 +71,25 @@ uint8_t eliminateBits(uint8_t value)
     *   000x xxxx
     */
 
-    uint8_t retval;
-
-    if      (0x00 <= value && value <= 0x7F)    retval = value;
-    else if (0xC0 <= value && value <= 0xDF)    retval = value & 0x1F;
-    else if (0xE0 <= value && value <= 0xEF)    retval = value & 0xF;
-    else if (0xF0 <= value && value <= 0xF7)    retval = value & 0x7;
-    else                                        retval = 0;
-
-    return retval;
+    uint8_t returnValue;
+    if      (UTF8_BYTE_ONE_MIN <= value && value <= UTF8_BYTE_ONE_MAX)        returnValue = value;
+    else if (UTF8_BYTE_TWO_MIN <= value && value <= UTF8_BYTE_TWO_MAX)        returnValue = value & UTF8_BYTE_TWO_MASK;
+    else if (UTF8_BYTE_THREE_MIN <= value && value <= UTF8_BYTE_THREE_MAX)    returnValue = value & UTF8_BYTE_THREE_MASK;
+    else if (UTF8_BYTE_FOUR_MIN <= value && value <= UTF8_BYTE_FOUR_MAX)      returnValue = value & UTF8_BYTE_FOUR_MASK;
+    else                                                                      returnValue = 0;
+    return returnValue;
 }
 
-uint8_t decode(uint8_t bytes[4])
+uint8_t decode(uint8_t *bytes)
 {
-    int sum = 0;
-    uint8_t numOfBytes;
-    uint8_t isCont;
+    uint8_t  i, numOfBytes, isCont;
+    uint32_t sum;
+
+    sum = 0;
+    i = 0;
 
     // check if first byte is valid
-    if (bytes[0] > 0xFF) return sum;
+    if (bytes[0] > UTF8_MAX_BYTE_SIZE) return sum;
 
     // check for # of continuation bytes to read
     numOfBytes = bytesToRead(bytes[0]);
@@ -77,7 +101,7 @@ uint8_t decode(uint8_t bytes[4])
     // add first byte to sum
     sum += bytes[0];
 
-    for (int i = 1; i <= numOfBytes; i++)
+    for (i = 1; i <= numOfBytes; i++)
     {
         // check if the ith bit is EOF
         if (bytes[i] == 0) break;
@@ -87,10 +111,10 @@ uint8_t decode(uint8_t bytes[4])
         if (isCont == 0) break;
 
         // removing framing bits
-        bytes[i] = bytes[i] & 0x3F;
+        bytes[i] = bytes[i] & UTF8_FRAMING_BIT_MASK;
 
         // add to sum
-        sum = sum << 6;
+        sum = sum << UTF8_SHIFT_LENGTH;
         sum += bytes[i];
     }
 
@@ -101,13 +125,16 @@ uint8_t decode(uint8_t bytes[4])
 
 int main(void)
 {
-    uint8_t input[4];
-    for (int i = 0; i < 4; i++)
+    uint8_t i;
+    uint8_t *input;
+    input = (uint8_t*) malloc(sizeof(uint8_t)*UTF8_TOTAL_BYTES);
+    for (i = 0; i < UTF8_TOTAL_BYTES; i++)
     {
         printf("Enter byte #%d: ", i+1);
         scanf("%hhx", &input[i]);
         if (input[i] == 0) break;
     }
     decode(input);
+    free(input);
     return 0;
 }
