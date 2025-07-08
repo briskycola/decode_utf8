@@ -47,18 +47,20 @@ uint8_t bytesToRead(uint8_t value)
 
 uint8_t isContinuation(uint8_t value)
 {
-    // format of value: | ff dd dddd |
-    // where 'f' denotes a framing bit
-    // where 'd' denotes a data bit
-    uint8_t returnValue;
-    returnValue = 0;
-
-    // eliminate the data bits from value
-    value = value & UTF8_DATA_BIT_MASK;
-
-    // ensure the framing bits are "10"
-    if (value == UTF8_CONTINUATION_BIT_MASK) returnValue = 1;
-    return returnValue;
+    /*
+    *   format of value: | ff dd dddd |
+    *   where 'f' denotes a framing bit
+    *   where 'd' denotes a data bit
+    *
+    *   To verify that the input is a continuation
+    *   byte, we need to remove the data bits
+    *   using bitwise AND.
+    *
+    *   If the byte is in the form 10xx xxxx,
+    *   it is a continuation byte.
+    */
+    
+    return ((value & UTF8_DATA_BIT_MASK) == UTF8_CONTINUATION_BIT_MASK);
 }
 
 uint8_t eliminateBits(uint8_t value)
@@ -82,11 +84,11 @@ uint8_t eliminateBits(uint8_t value)
 
 uint8_t decode(uint8_t *bytes)
 {
-    uint8_t  i, numOfBytes, isCont;
+    uint8_t  i, numOfBytes;
     uint32_t sum;
 
+    i   = 0;
     sum = 0;
-    i = 0;
 
     // check if first byte is valid
     if (bytes[0] > UTF8_MAX_BYTE_SIZE) return sum;
@@ -107,8 +109,7 @@ uint8_t decode(uint8_t *bytes)
         if (bytes[i] == 0) break;
 
         // verify that it is a continuation bit
-        isCont = isContinuation(bytes[i]);
-        if (isCont == 0) break;
+        if (isContinuation(bytes[i]) == 0) break;
 
         // removing framing bits
         bytes[i] = bytes[i] & UTF8_FRAMING_BIT_MASK;
@@ -127,7 +128,7 @@ int main(void)
 {
     uint8_t i;
     uint8_t *input;
-    input = (uint8_t*) malloc(sizeof(uint8_t)*UTF8_TOTAL_BYTES);
+    input = (uint8_t*) malloc(sizeof(uint8_t) * UTF8_TOTAL_BYTES);
     for (i = 0; i < UTF8_TOTAL_BYTES; i++)
     {
         printf("Enter byte #%d: ", i+1);
